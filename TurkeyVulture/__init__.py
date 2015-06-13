@@ -39,8 +39,7 @@ class FacebookThread:
         self.participants = raw_json['to']['data']
         self._comments_json = raw_json['comments']
 
-        self._posts = self._comments_json['data']
-        self._next_page_url = self._comments_json['paging']['next'] if 'paging' in self._comments_json else None
+        self._posts = self._data
 
         self.thread_id = thread_id
         self.access_token = access_token
@@ -56,18 +55,28 @@ class FacebookThread:
             next_query['access_token'] = self.access_token
 
             self._comments_json = self._graph.get_object(next_path, **next_query)
-            # Todo: Make getter setter
-            self._posts = self._comments_json['data'] + self._posts
-            self._next_page_url = self._comments_json['paging']['next'] if 'paging' in self._comments_json else None
+            self._posts = self._data + self._posts
             return True
 
-    def get_posts(self):
+    @property
+    def _data(self):
+        return self._comments_json['data']
+
+    @property
+    def _next_page_url(self):
+        return self._comments_json['paging']['next'] if 'paging' in self._comments_json else None
+
+    @property
+    def posts(self):
         return self._posts
 
     def pop_posts(self):
         return_posts = self._posts
         self._posts = []
         return return_posts
+
+    def set_access_token(self, access_token):
+        self._graph.access_token = access_token
 
 
 class DatabaseHandler:
@@ -110,37 +119,6 @@ def replace_token_prompt():
     return str(raw_input('Please obtain a new token and type it into the command line to continue:'))
 
 
-def pull_all_conversation_pages(access_token, thread_id, database_handler, token_replacer=None):
-    TOKEN_EXPIRATION = 999 #Find this one out
-    OVER_RATE_LIMIT = 603 #Find the one out too
-    COOLDOWN_DEFAULT = 10
-    API_TIMEOUT = 60
-
-    api = facebook.GraphAPI(access_token=access_token, timeout=60)
-    over_limit_cooldown = COOLDOWN_DEFAULT
-
-    current_thread_page = pull_thread_page(api, thread_id)
-    database_handler.add_participants(current_thread_page.participants)
-    database_handler.add_posts(current_thread_page.data)
-
-    while current_thread_page.last_post_id is not None:
-        try:
-            current_thread_page = pull_thread_page(api, thread_id + '/comments', until=current_thread_page.last_post_id)
-        except facebook.GraphAPIError as fb_error:
-            if fb_error.type == TOKEN_EXPIRATION and token_replacer is not None:
-                token_replacer()
-                continue
-            elif fb_error.type == OVER_RATE_LIMIT:
-                time.sleep(over_limit_cooldown)
-                over_limit_cooldown *= 2
-                continue
-            else:
-                raise fb_error
-
-        database_handler.add_posts(current_thread_page.data)
-        over_limit_cooldown = COOLDOWN_DEFAULT
-
-
 def main():
 
     config = ConfigParser.ConfigParser()
@@ -173,6 +151,11 @@ def main():
     #    except facebook.GraphAPIError as fb_error:
     #        if fb_error.result['error']['code'] == 613:
     #            time.sleep(100)
+    #       elif fb_error.result['error']['code'] == 190:
+    #            new_token = str(raw_input('Please input a new access_token'))
+    #            thread.set_access_token(new_token)
+    #        else:
+    #            raise fb_error
 
     # api = facebook.GraphAPI(access_token=access_token, timeout=60)
     # stuff = api.get_object(thread_id)
