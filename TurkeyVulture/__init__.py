@@ -33,16 +33,14 @@ class FacebookThread:
         participants ([{string: {string}]): An array of the participants in the thread
     """
 
-    def __init__(self, access_token, thread_id, timeout=None):
-        self._graph = facebook.GraphAPI(access_token=access_token, timeout=timeout)
+    def __init__(self, graph, thread_id):
+        self._graph = graph
         raw_json = self._graph.get_object(thread_id)
         self.participants = raw_json['to']['data']
         self._comments_json = raw_json['comments']
 
         self._posts = self._data
-
         self.thread_id = thread_id
-        self.access_token = access_token
 
     # Public conversation puller
     def get_next_page(self):
@@ -52,7 +50,13 @@ class FacebookThread:
             next_parse_url = urlparse.urlparse(self._next_page_url)
             next_path = next_parse_url.path
             next_query = dict(urlparse.parse_qsl(next_parse_url.query))
-            next_query['access_token'] = self.access_token
+
+            try:
+                next_query.pop('access_token')
+            except KeyError:
+                # We want to remove the access token, so if it's already been removed or it
+                # doesn't exist in the first place then we should be fine
+                pass
 
             self._comments_json = self._graph.get_object(next_path, **next_query)
             self._posts = self._data + self._posts
@@ -60,7 +64,7 @@ class FacebookThread:
 
     @property
     def _data(self):
-        return self._comments_json['data']
+        return self._comments_json['data'] if 'data' in self._comments_json else None
 
     @property
     def _next_page_url(self):
@@ -75,7 +79,7 @@ class FacebookThread:
         self._posts = []
         return return_posts
 
-    def set_access_token(self, access_token):
+    def change_access_token(self, access_token):
         self._graph.access_token = access_token
 
 
@@ -143,6 +147,8 @@ def main():
     print(json.dumps(stuff, sort_keys=True, indent=4, separators=(',', ': ')))
     print(stuff['to']['data'])
     thread = FacebookThread(access_token, thread_id, timeout=60)
+    graph = facebook.GraphAPI(access_token=access_token, timeout=60)
+    thread = FacebookThread(graph, thread_id)
     thread.get_next_page()
     #next_page_exists = thread.get_next_page()
     #while next_page_exists:
@@ -153,7 +159,7 @@ def main():
     #            time.sleep(100)
     #       elif fb_error.result['error']['code'] == 190:
     #            new_token = str(raw_input('Please input a new access_token'))
-    #            thread.set_access_token(new_token)
+    #            thread.change_access_token(new_token)
     #        else:
     #            raise fb_error
 
