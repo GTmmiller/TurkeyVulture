@@ -40,6 +40,7 @@ class FacebookThread:
         self._comments_json = raw_json['comments']
 
         self._posts = self._data
+        self._latest_post_id = self._data[-1]['id'].split('_')[1]
         self.thread_id = thread_id
 
     # Public conversation puller
@@ -117,10 +118,6 @@ class DatabaseHandler:
 
     def close(self):
         self._db_connection.close()
-
-
-def replace_token_prompt():
-    return str(raw_input('Please obtain a new token and type it into the command line to continue:'))
 
 
 def main():

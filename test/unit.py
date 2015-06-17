@@ -46,13 +46,17 @@ class TestConstructThread(FacebookThreadTestCase):
         self.assertListEqual(self.test_thread._data, self.test_thread.posts)
         self.assertEqual(25, len(self.test_thread.posts))
 
+    def test_assign_latest_post_id(self):
+        self.assertEqual('36', self.test_thread._latest_post_id)
+
 
 class TestGetNextPage(FacebookThreadTestCase):
     def test_get_next_page_exists(self):
         self.assertTrue(self.test_thread.get_next_page())
         self.assertEqual(36, len(self.test_thread.posts))
+        self.assertTrue(self.test_thread.get_next_page())
+        self.assertEqual(36, len(self.test_thread.posts))
         self.assertFalse(self.test_thread.get_next_page())
-
 
 class TestNextPageUrl(FacebookThreadTestCase):
     def test_next_page_exists(self):
