@@ -51,12 +51,13 @@ class TestConstructThread(FacebookThreadTestCase):
 
 
 class TestGetNextPage(FacebookThreadTestCase):
-    def test_get_next_page_exists(self):
+    def test_get_next_page(self):
         self.assertTrue(self.test_thread.get_next_page())
         self.assertEqual(36, len(self.test_thread.posts))
         self.assertTrue(self.test_thread.get_next_page())
         self.assertEqual(36, len(self.test_thread.posts))
         self.assertFalse(self.test_thread.get_next_page())
+
 
 class TestNextPageUrl(FacebookThreadTestCase):
     def test_next_page_exists(self):
