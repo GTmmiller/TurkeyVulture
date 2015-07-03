@@ -5,17 +5,8 @@ __license__ = 'Apache 2.0'
 
 __all__ = ['pull_thread_messages']
 
-import facebook
-import ConfigParser
-import json
-import requests
 import pymongo
-import re
-import time
-import operator
 import urlparse
-
-VULTURE_CONFIG_FILE = 'config/vulture.ini'
 
 
 class FacebookThread:
@@ -38,10 +29,11 @@ class FacebookThread:
         raw_json = self._graph.get_object(thread_id)
         self.participants = raw_json['to']['data']
         self._comments_json = raw_json['comments']
-
         self._posts = self._data
-        self._latest_post_id = self._data[-1]['id'].split('_')[1]
+        self._latest_post_id = self._get_post_id(self._data[-1])
+        self._updating = False
         self.thread_id = thread_id
+        self._old_latest_post_id = None
 
     # Public conversation puller
     def get_next_page(self):
@@ -62,6 +54,48 @@ class FacebookThread:
             self._comments_json = self._graph.get_object(next_path, **next_query)
             self._posts = self._data + self._posts
             return True
+
+    def update_thread(self):
+        if self._updating is False:
+            self._old_latest_post_id = self._latest_post_id
+            self._comments_json = self._graph.get_object(self.thread_id + '/comments')
+            self._latest_post_id = self._get_post_id(self._data[-1])
+        else:
+            next_parse_url = urlparse.urlparse(self._next_page_url)
+            next_path = next_parse_url.path
+            next_query = dict(urlparse.parse_qsl(next_parse_url.query))
+
+            try:
+                next_query.pop('access_token')
+            except KeyError:
+                # We want to remove the access token, so if it's already been removed or it
+                # doesn't exist in the first place then we should be fine
+                pass
+
+            self._comments_json = self._graph.get_object(next_path, **next_query)
+
+        # check if there's new comments
+        if self._old_latest_post_id == self._latest_post_id:
+            self._old_latest_post_id = None
+            self._updating = False
+            return False
+
+        # check if it's a partial new page
+        if self._old_latest_post_id >= self._get_post_id(self._data[0]):
+            # pull all posts that happened after the old latest post
+            new_post_data = [post for post in self._data if self._get_post_id(post) > self._old_latest_post_id]
+            self._posts = self._posts + new_post_data
+            self._updating = False
+        else:
+            self._posts = self._posts + self._data
+        return True
+
+    def update_participants(self):
+        self.participants = self._graph.get_object(self.thread_id + '/to/data')
+
+    @staticmethod
+    def _get_post_id(post):
+        return post['id'].split('_')[1]
 
     @property
     def _data(self):
@@ -118,91 +152,3 @@ class DatabaseHandler:
 
     def close(self):
         self._db_connection.close()
-
-
-def main():
-
-    config = ConfigParser.ConfigParser()
-    config.read(VULTURE_CONFIG_FILE)
-
-    access_token = config.get('graph.facebook.com', 'AccessToken')
-    thread_id = config.get('graph.facebook.com', 'ThreadId')
-
-    mongo_url = config.get('db', 'mongo_url')
-    mongo_database = config.get('db', 'database')
-
-    api = facebook.GraphAPI(access_token=access_token, timeout=60)
-    stuff = api.get_object(thread_id)
-    other_stuff = api.get_object(thread_id + '/comments', until=stuff['comments']['data'][0]['id'].split('_')[1])
-    more_other_stuff = api.get_object(thread_id + '/comments', until=other_stuff['data'][0]['id'].split('_')[1])
-
-    print(stuff['comments']['data'][0]['id'].split('_')[1])
-    other_data = other_stuff['data']
-    other_data.pop()
-    print(json.dumps(more_other_stuff, sort_keys=True, indent=4, separators=(',', ': ')))
-    print(json.dumps(other_data, sort_keys=True, indent=4, separators=(',', ': ')))
-    print(json.dumps(stuff, sort_keys=True, indent=4, separators=(',', ': ')))
-    print(stuff['to']['data'])
-    thread = FacebookThread(access_token, thread_id, timeout=60)
-    graph = facebook.GraphAPI(access_token=access_token, timeout=60)
-    thread = FacebookThread(graph, thread_id)
-    thread.get_next_page()
-    #next_page_exists = thread.get_next_page()
-    #while next_page_exists:
-    #    try:
-    #        next_page_exists = thread.get_next_page()
-    #    except facebook.GraphAPIError as fb_error:
-    #        if fb_error.result['error']['code'] == 613:
-    #            time.sleep(100)
-    #       elif fb_error.result['error']['code'] == 190:
-    #            new_token = str(raw_input('Please input a new access_token'))
-    #            thread.change_access_token(new_token)
-    #        else:
-    #            raise fb_error
-
-    # api = facebook.GraphAPI(access_token=access_token, timeout=60)
-    # stuff = api.get_object(thread_id)
-    # other_stuff = api.get_object(thread_id + '/comments', until=stuff['comments']['data'][0]['id'].split('_')[1])
-    #more_other_stuff = api.get_object(thread_id + '/comments', until=other_stuff['data'][0]['id'].split('_')[1])
-
-    # print(stuff['comments']['data'][0]['id'].split('_')[1])
-    # other_data = other_stuff['data']
-    # other_data.pop()
-    # print(json.dumps(more_other_stuff, sort_keys=True, indent=4, separators=(',', ': ')))
-    # print(json.dumps(other_data, sort_keys=True, indent=4, separators=(',', ': ')))
-    # print(json.dumps(stuff, sort_keys=True, indent=4, separators=(',', ': ')))
-    # print(stuff['to']['data'])
-    #other_stuff['data'].pop()
-    #print(json.dumps(other_stuff['data'] + stuff['comments']['data'], sort_keys=True, indent=4, separators=(',', ': ')))
-    #print other_stuff
-    #[0:len(other_stuff['data']) - 1]
-
-    #db_handler = DatabaseHandler(mongo_url, mongo_database, thread_id=thread_id)
-    #db_handler.authenticate(config.get('db', 'username'), config.get('db', 'password'))
-
-    #first_messages = ThreadPage(stuff)
-    #second_messages = ThreadPage(other_stuff)
-    #print('pulled messages!')
-
-    #db_handler.add_posts(first_messages.data)
-    #db_handler.add_posts(second_messages.data)
-    #print('added messages')
-    #db_handler.close()
-
-    print('It worked!')
-
-    #print(json.dumps(first_messages['comments']['data'], sort_keys=True, indent=4, separators=(',', ': ')))
-    #print(first_messages['comments']['paging']['next'])
-
-    #second_messages = requests.get(first_messages['comments']['paging']['next']).json()
-    #print(json.dumps(second_messages['data'], sort_keys=True, indent=4, separators=(',', ': ')))
-    #print(second_messages['paging']['next'])
-
-    #total_messages = second_messages['data'] + first_messages['comments']['data']
-
-    #all_messages = pull_all_conversation_pages(access_token, thread_id)
-    #print(json.dumps(all_messages, sort_keys=True, indent=4, separators=(',', ': ')))
-
-
-if __name__ == "__main__":
-    main()
