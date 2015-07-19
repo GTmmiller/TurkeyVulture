@@ -22,21 +22,29 @@ class FacebookThread:
 
     """
 
-    def __init__(self, graph, thread_id):
+    def __init__(self, graph, thread_id, latest_post_id=None):
         """The Initializer for the FacebookThread object
 
         Args:
             :param graph: The connection to the Facebook Graph Api
             :param thread_id: The id of the thread to pull messages from
+            :param latest_post_id: An optional parameter to specify the last post to start from
             :type graph: facebook.GraphApi
             :type thread_id: str
+            :type latest_post_id: str
         """
         self._graph = graph
-        raw_json = self._graph.get_object(thread_id)
-        self.participants = raw_json['to']['data']
-        self._comments_json = raw_json['comments']
-        self._posts = self._data
-        self._latest_post_id = self._get_post_id(self._data[-1])
+        if not latest_post_id:
+            raw_json = self._graph.get_object(thread_id)
+            self.participants = raw_json['to']['data']
+            self._comments_json = raw_json['comments']
+            self._posts = self._data
+            self._latest_post_id = self._get_post_id(self._data[-1])
+        else:
+            self.participants = []
+            self._comments_json = []
+            self._posts = []
+            self._latest_post_id = latest_post_id
         self._updating = False
         self.thread_id = thread_id
         self._old_latest_post_id = None

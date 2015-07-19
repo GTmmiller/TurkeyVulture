@@ -74,6 +74,11 @@ class FacebookThreadTestCase(unittest.TestCase):
         self.test_thread = turkey_vulture.FacebookThread(MockGraphAPI(), '999')
 
 
+class UpdateThreadConstructorTestCase(unittest.TestCase):
+    def setUp(self):
+        self.test_thread = turkey_vulture.FacebookThread(MockGraphAPI(), '999', '36')
+
+
 class UpdateThreadTestCase(FacebookThreadTestCase):
     def setUp(self):
         super(UpdateThreadTestCase, self).setUp()
@@ -167,6 +172,19 @@ class TestChangeAccessToken(FacebookThreadTestCase):
         self.test_thread.change_access_token('Barry')
         self.assertEquals('Barry', self.test_thread._graph.access_token)
 
+
+class TestUpdateThreadIdConstructor(UpdateThreadConstructorTestCase):
+    def test_full_update(self):
+        self.test_thread._graph.use_full_update_order()
+        self.assertTrue(self.test_thread.update_thread())
+        self.assertFalse(self.test_thread.update_thread())
+        self.assertEqual(25, len(self.test_thread.posts))
+
+    def test_partial_update(self):
+        self.test_thread._graph.use_partial_update_order()
+        self.assertTrue(self.test_thread.update_thread())
+        self.assertFalse(self.test_thread.update_thread())
+        self.assertEqual(6, len(self.test_thread.posts))
 
 if __name__ == '__main__':
     unittest.main()
