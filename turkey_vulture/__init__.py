@@ -10,21 +10,27 @@ import urlparse
 
 
 class FacebookThread:
-    """Facebook Thread is a class that represents a Facebook Messenger Thread conversation
+    """FacebookThread represents a Facebook Messenger Thread conversation
 
-    This class acts as a container and retriever for a Facebook conversation thread. It pulls the thread
-    25 messages at a time due to Graph API limitations. Facebook conversations can be very long, so there's an
-    option to "pop" the current array of messages in order to process it and save space in memory.
+    This class acts as a container and retriever for a Facebook conversation thread. It has the functionality to pull
+    all of the messages from a thread given a valid thread id. It can also pull all messages created after a certain
+    given message id. This class depends on the facebook-sdk python library and the 'read-mailbox' GraphApi permission.
 
     Attributes:
-        _graph (GraphAPI): A GraphAPI client that has access to the thread contents
-        _raw_json ({string: {string}}: A dictionary representation of the current thread page object
-        thread_id (string): The id of the messenger thread the FacebookThread represents
-        _posts ([{string: {string}]): A running array of the posts retrieved
-        participants ([{string: {string}]): An array of the participants in the thread
+        participants (List[Dict{string}]): A json representation of the participants in the thread.
+        thread_id (str): The thread id the object targets.
+
     """
 
     def __init__(self, graph, thread_id):
+        """The Initializer for the FacebookThread object
+
+        Args:
+            :param graph: The connection to the Facebook Graph Api
+            :param thread_id: The id of the thread to pull messages from
+            :type graph: facebook.GraphApi
+            :type thread_id: str
+        """
         self._graph = graph
         raw_json = self._graph.get_object(thread_id)
         self.participants = raw_json['to']['data']
@@ -35,8 +41,12 @@ class FacebookThread:
         self.thread_id = thread_id
         self._old_latest_post_id = None
 
-    # Public conversation puller
     def get_next_page(self):
+        """Adds the next 25 posts from the conversation to the FacebookThread object
+
+        :return: If there are more posts to retrieve from the conversation
+        :rtype: bool
+        """
         if self._next_page_url is None:
             return False
         else:
@@ -56,6 +66,11 @@ class FacebookThread:
             return True
 
     def update_thread(self):
+        """Checks for new posts in reference to the latest post retrieved and adds the next 25 posts if they exist
+
+        :return: If there are additional posts to retrieve
+        :rtype: bool
+        """
         if self._updating is False:
             self._old_latest_post_id = self._latest_post_id
             self._comments_json = self._graph.get_object(self.thread_id + '/comments')
@@ -95,26 +110,52 @@ class FacebookThread:
 
     @staticmethod
     def _get_post_id(post):
+        """An internal method for retrieving the id of a given post
+
+        :param post: A post to retrieve an id from
+        :type post: Dict[str]
+        :return: The given post's id
+        :rtype: str
+        """
         return post['id'].split('_')[1]
 
     @property
     def _data(self):
+        """List[Dict[str]]: The data from the current thread json."""
         return self._comments_json['data'] if 'data' in self._comments_json else None
 
     @property
     def _next_page_url(self):
+        """str: The url for the next page of 25 posts from the current thread json."""
         return self._comments_json['paging']['next'] if 'paging' in self._comments_json else None
 
     @property
     def posts(self):
+        """List[Dict[str]]: The current list of posts retrieved from the thread."""
         return self._posts
 
     def pop_posts(self):
+        """Returns and clears the posts from the object
+
+        Facebook conversation threads can be very long, so sometimes it's necessary to offload posts in order to
+        free up memory. This can be used to batch process posts from a thread.
+
+        :return: The current posts array
+        :rtype: List[Dict[str]]
+        """
         return_posts = self._posts
         self._posts = []
         return return_posts
 
     def change_access_token(self, access_token):
+        """Changes the access token being used by the GraphApi object
+
+        Some Facebook conversations can take a long time to completely pull, so you may need to use this method to
+        change your API key if it happens to expire while posts are being pulled
+
+        :param access_token: The new access token for the GraphApi object to use
+        :type access_token: str
+        """
         self._graph.access_token = access_token
 
 
