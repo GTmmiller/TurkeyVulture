@@ -1,4 +1,4 @@
-import TurkeyVulture
+import turkey_vulture
 import facebook
 import ConfigParser
 import time
@@ -19,11 +19,11 @@ def main():
     mongo_username = config.get('db', 'username')
     mongo_password = config.get('db', 'password')
 
-    database_handler = TurkeyVulture.DatabaseHandler(mongo_url, mongo_database, thread_id=thread_id)
+    database_handler = turkey_vulture.DatabaseHandler(mongo_url, mongo_database, thread_id=thread_id)
     database_handler.authenticate(mongo_username, mongo_password)
 
     graph = facebook.GraphAPI(access_token=access_token, timeout=60)
-    thread = TurkeyVulture.FacebookThread(graph, thread_id)
+    thread = turkey_vulture.FacebookThread(graph, thread_id)
     next_page_exists = thread.get_next_page()
     database_handler.add_participants(thread.participants)
 

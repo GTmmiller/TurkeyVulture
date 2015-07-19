@@ -1,4 +1,4 @@
-__title__ = 'TurkeyVulture'
+__title__ = 'turkey_vulture'
 __version__ = '0.0.1'
 __author__ = 'Steven Miller'
 __license__ = 'Apache 2.0'

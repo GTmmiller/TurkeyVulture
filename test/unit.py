@@ -1,5 +1,5 @@
 import unittest
-import TurkeyVulture
+import turkey_vulture
 import json
 import facebook
 import re
@@ -23,45 +23,55 @@ class MockGraphAPI(facebook.GraphAPI):
         with open('data/999_partial_update.json', 'r') as partial_update_page_file:
             self.partial_update_page_json = json.load(partial_update_page_file)
 
-        self.enable_update = False
-        self.enable_partial_update = False
+        self._thread_order = {}
+        self.use_default_order()
+        self._api_version_regex = re.compile('/v\d\.\d/')
+
+    def use_default_order(self):
+        self._thread_order = {
+            '999': {
+                None: self.thread_999_start_json,
+                '12': self.thread_999_until_12_json,
+                '1': self.last_page_json
+            }
+        }
+
+    def use_full_update_order(self):
+        self._thread_order = {
+            '999': {
+                None: self.update_page_json,
+                '37': self.thread_999_start_json,
+                '12': self.thread_999_until_12_json,
+                '1': self.last_page_json
+            }
+        }
+
+    def use_partial_update_order(self):
+        self._thread_order = {
+            '999': {
+                None: self.partial_update_page_json
+            }
+        }
 
     def get_object(self, id, **kwargs):
-        if id == '999':
-            if self.enable_update:
-                return self.update_page_json
-            elif self.enable_partial_update:
-                return self.partial_update_page_json
-            else:
-                return self.thread_999_start_json
-        elif id == '999/to/data':
-            if self.enable_update:
-                return self.update_page_json['to']['data']
-            elif self.enable_partial_update:
-                return self.partial_update_page_json['to']['data']
-            else:
-                return self.thread_999_start_json['to']['data']
-        elif id == '999/comments' or re.search('/v\d+\.\d+/\d+/comments', id) is not None:
-            if 'until' in kwargs:
-                if kwargs['until'] == '37':
-                    return self.thread_999_start_json
-                elif kwargs['until'] == '12':
-                    return self.thread_999_until_12_json
-                elif kwargs['until'] == '1':
-                    return self.last_page_json
-            elif self.enable_update:
-                return self.update_page_json['comments']
-            elif self.enable_partial_update:
-                return self.partial_update_page_json['comments']
-            else:
-                return self.thread_999_start_json['comments']
+        id_array = re.sub(self._api_version_regex, '', id).split('/')
+
+        thread_id = id_array[0]
+        data_path = id_array[1:]
+        if 'until' in kwargs:
+            until = kwargs['until']
         else:
-            return None
+            until = None
+
+        thread_page = self._thread_order[thread_id][until]
+        for path in data_path:
+            thread_page = thread_page.get(path)
+        return thread_page
 
 
 class FacebookThreadTestCase(unittest.TestCase):
     def setUp(self):
-        self.test_thread = TurkeyVulture.FacebookThread(MockGraphAPI(), '999')
+        self.test_thread = turkey_vulture.FacebookThread(MockGraphAPI(), '999')
 
 
 class UpdateThreadTestCase(FacebookThreadTestCase):
@@ -101,13 +111,13 @@ class TestUpdateThread(UpdateThreadTestCase):
         self.assertFalse(self.test_thread.update_thread())
 
     def test_update_thread(self):
-        self.test_thread._graph.enable_update = True
+        self.test_thread._graph.use_full_update_order()
         self.assertTrue(self.test_thread.update_thread())
         self.assertFalse(self.test_thread.update_thread())
         self.assertEqual(61, len(self.test_thread.posts))
 
     def test_partial_update_thread(self):
-        self.test_thread._graph.enable_partial_update = True
+        self.test_thread._graph.use_partial_update_order()
         self.assertTrue(self.test_thread.update_thread())
         self.assertFalse(self.test_thread.update_thread())
         self.assertEqual(42, len(self.test_thread.posts))
@@ -119,19 +129,19 @@ class TestUpdateParticipants(UpdateThreadTestCase):
         self.assertEqual(8, len(self.test_thread.participants))
 
     def test_update_new_participants(self):
-        self.test_thread._graph.enable_update = True
+        self.test_thread._graph.use_full_update_order()
         self.test_thread.update_participants()
         self.assertEqual(9, len(self.test_thread.participants))
 
     def test_update_remove_participants(self):
-        self.test_thread._graph.enable_partial_update = True
+        self.test_thread._graph.use_partial_update_order()
         self.test_thread.update_participants()
         self.assertEqual(7, len(self.test_thread.participants))
 
 
 class TestGetPostId(FacebookThreadTestCase):
     def test_get_post_id(self):
-        self.assertEqual('12', TurkeyVulture.FacebookThread._get_post_id(self.test_thread._data[0]))
+        self.assertEqual('12', turkey_vulture.FacebookThread._get_post_id(self.test_thread._data[0]))
 
 
 class TestNextPageUrl(FacebookThreadTestCase):
