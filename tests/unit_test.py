@@ -1,7 +1,6 @@
 import unittest
 import turkey_vulture
 import data
-import json
 import facebook
 import re
 
