@@ -1,5 +1,6 @@
 import unittest
 import turkey_vulture
+import data
 import json
 import facebook
 import re
@@ -8,21 +9,6 @@ import re
 class MockGraphAPI(facebook.GraphAPI):
     def __init__(self):
         facebook.GraphAPI.__init__(self, "access_token", 60)
-        with open('data/999.json', 'r') as thread_999_file:
-            self.thread_999_start_json = json.load(thread_999_file)
-
-        with open('data/999_until_12.json', 'r') as thread_999_until_12_file:
-            self.thread_999_until_12_json = json.load(thread_999_until_12_file)
-
-        with open('data/last_page.json', 'r') as last_page_file:
-            self.last_page_json = json.load(last_page_file)
-
-        with open('data/999_update.json', 'r') as update_page_file:
-            self.update_page_json = json.load(update_page_file)
-
-        with open('data/999_partial_update.json', 'r') as partial_update_page_file:
-            self.partial_update_page_json = json.load(partial_update_page_file)
-
         self._thread_order = {}
         self.use_default_order()
         self._api_version_regex = re.compile('/v\d\.\d/')
@@ -30,26 +16,26 @@ class MockGraphAPI(facebook.GraphAPI):
     def use_default_order(self):
         self._thread_order = {
             '999': {
-                None: self.thread_999_start_json,
-                '12': self.thread_999_until_12_json,
-                '1': self.last_page_json
+                None: data.START_999_JSON,
+                '12': data.UNTIL_12_999_JSON,
+                '1': data.LAST_PAGE_JSON
             }
         }
 
     def use_full_update_order(self):
         self._thread_order = {
             '999': {
-                None: self.update_page_json,
-                '37': self.thread_999_start_json,
-                '12': self.thread_999_until_12_json,
-                '1': self.last_page_json
+                None: data.UPDATE_999_JSON,
+                '37': data.START_999_JSON,
+                '12': data.UNTIL_12_999_JSON,
+                '1': data.LAST_PAGE_JSON
             }
         }
 
     def use_partial_update_order(self):
         self._thread_order = {
             '999': {
-                None: self.partial_update_page_json
+                None: data.PARTIAL_UPDATE_999_JSON
             }
         }
 
