@@ -170,9 +170,3 @@ class TestUpdateThreadIdConstructor(UpdateThreadConstructorTestCase):
         self.assertTrue(self.test_thread.update_thread())
         self.assertFalse(self.test_thread.update_thread())
         self.assertEqual(6, len(self.test_thread.posts))
-
-if __name__ == '__main__':
-    unittest.main()
-
-
-
