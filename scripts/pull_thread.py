@@ -40,6 +40,8 @@ def main():
                 thread.change_access_token(new_token)
             else:
                 raise fb_error
+        finally:
+            database_handler.close()
 
 if __name__ == "__main__":
     main()
