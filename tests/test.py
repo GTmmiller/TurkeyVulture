@@ -104,6 +104,7 @@ class TestUpdateThread(UpdateThreadTestCase):
     def test_update_thread(self):
         self.test_thread._graph.use_full_update_order()
         self.assertTrue(self.test_thread.update_thread())
+        self.assertTrue(self.test_thread.update_thread())
         self.assertFalse(self.test_thread.update_thread())
         self.assertEqual(61, len(self.test_thread.posts))
 
@@ -162,6 +163,7 @@ class TestChangeAccessToken(FacebookThreadTestCase):
 class TestUpdateThreadIdConstructor(UpdateThreadConstructorTestCase):
     def test_full_update(self):
         self.test_thread._graph.use_full_update_order()
+        self.assertTrue(self.test_thread.update_thread())
         self.assertTrue(self.test_thread.update_thread())
         self.assertFalse(self.test_thread.update_thread())
         self.assertEqual(25, len(self.test_thread.posts))
