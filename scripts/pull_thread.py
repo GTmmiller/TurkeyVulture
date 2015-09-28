@@ -25,7 +25,7 @@ def main():
     graph = facebook.GraphAPI(access_token=access_token, timeout=60)
     thread = turkey_vulture.FacebookThread(graph, thread_id)
     next_page_exists = thread.get_next_page()
-    database_handler.add_participants(thread.participants)
+    database_handler.set_participants(thread.participants)
 
     while next_page_exists:
         try:

@@ -7,6 +7,7 @@ __all__ = ['pull_thread_messages']
 
 import pymongo
 import urlparse
+from datetime import datetime
 
 
 class FacebookThread:
@@ -98,19 +99,21 @@ class FacebookThread:
             self._comments_json = self._graph.get_object(next_path, **next_query)
 
         # check if there's new comments
-        if self._old_latest_post_id == self._latest_post_id:
+        # If there aren't then don't bother
+        if long(self._old_latest_post_id) == long(self._latest_post_id):
             self._old_latest_post_id = None
             self._updating = False
             return False
 
         # check if it's a partial new page
-        if self._old_latest_post_id >= self._get_post_id(self._data[0]):
+        if long(self._old_latest_post_id) >= long(self._get_post_id(self._data[0])):
             # pull all posts that happened after the old latest post
             new_post_data = [post for post in self._data if self._get_post_id(post) > self._old_latest_post_id]
             self._posts = self._posts + new_post_data
             self._updating = False
         else:
             self._posts = self._posts + self._data
+            self._updating = True
         return True
 
     def update_participants(self):
@@ -194,10 +197,23 @@ class DatabaseHandler:
         self._db().authenticate(username, password, mechanism='SCRAM-SHA-1')
 
     def add_posts(self, post_list):
-        self._posts_collection().insert_many(post_list)
+        transformed_post_list = [DatabaseHandler.post_transform(post) for post in post_list]
+        self._posts_collection().insert_many(transformed_post_list)
 
-    def add_participants(self, participants_list):
+    @staticmethod
+    def post_transform(post):
+        post["_id"] = post.pop("id")
+        post["created_time"] = datetime.strptime(post["created_time"].split("+")[0], "%Y-%m-%dT%H:%M:%S")
+        return post
+
+    def set_participants(self, participants_list):
+        self._participants_collection().remove({})
         self._participants_collection().insert_many(participants_list)
+
+    @property
+    def most_recent_post_id(self):
+        # TODO: Save the _id as just the post id
+        return self._db_connection[self._db_name][self._posts_collection_name].find_one(sort=[('_id', pymongo.DESCENDING)])["_id"].split('_')[1]
 
     def close(self):
         self._db_connection.close()

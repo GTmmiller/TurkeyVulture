@@ -5,6 +5,7 @@ import facebook
 import re
 
 
+# TODO: Add test for big update
 class MockGraphAPI(facebook.GraphAPI):
     def __init__(self):
         facebook.GraphAPI.__init__(self, "access_token", 60)
