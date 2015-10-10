@@ -8,6 +8,7 @@ __all__ = ['pull_thread_messages']
 import pymongo
 import urlparse
 from datetime import datetime
+import re
 
 
 class FacebookThread:
@@ -173,6 +174,8 @@ class FacebookThread:
 class DatabaseHandler:
     POSTS_COLLECTION_BASE = 'posts'
     PARTICIPANTS_COLLECTION_BASE = 'participants'
+    # Special thanks to @gruber
+    URL_REGEX = re.compile("(^|\s)((https?://)?[\w-]+(\.[\w-]+)+\.?(:\d+)?(/\S*)?)", re.IGNORECASE)
 
     def __init__(self, database_url, database_name, thread_id=None):
         self._db_connection = pymongo.MongoClient(database_url)
@@ -214,6 +217,26 @@ class DatabaseHandler:
     def most_recent_post_id(self):
         # TODO: Save the _id as just the post id
         return self._db_connection[self._db_name][self._posts_collection_name].find_one(sort=[('_id', pymongo.DESCENDING)])["_id"].split('_')[1]
+
+    def posts_links_aggregation(self):
+        links_database_name = self._posts_collection_name + "_links"
+        self._posts_collection().aggregate(
+            [
+                {"$project": {"created_time": 1, "name": "$from.name", "message": 1, "processed": {"$literal": False}}},
+                {"$match": {"message": {"$regex": DatabaseHandler.URL_REGEX}}},
+                {"$out": links_database_name}
+            ]
+        )
+
+        # Pull all matching documents into memory and extract links. Update documents with a links field
+        # TODO: Make this a batch operation
+        update_operations = []
+        for doc in self._db()[links_database_name].find():
+            links = []
+            for match in re.finditer(DatabaseHandler.URL_REGEX, doc["message"]):
+                links.append(match.group().strip())
+            update_operations.append(pymongo.UpdateOne({"_id": doc["_id"]}, {"$set": {"links": links}}))
+        self._db()[links_database_name].bulk_write(update_operations)
 
     def close(self):
         self._db_connection.close()
