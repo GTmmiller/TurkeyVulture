@@ -9,6 +9,7 @@ import pymongo
 import urlparse
 from datetime import datetime
 import re
+import bson
 
 
 class FacebookThread:
@@ -218,6 +219,39 @@ class DatabaseHandler:
         # TODO: Save the _id as just the post id
         return self._db_connection[self._db_name][self._posts_collection_name].find_one(sort=[('_id', pymongo.DESCENDING)])["_id"].split('_')[1]
 
+    def posts_by_user_aggregation(self):
+        separator_regex = re.compile('[\s\.,\?!;:]+')
+        by_user_database_name = self._posts_collection_name + "_words_by_user"
+        mapper = bson.Code("""
+                           function() { emit( this.from.name, this.message ); }
+                           """)
+        reducer = bson.Code("""
+                            function(key, values) { return values.join(' ') + ' '; }
+                            """)
+
+        self._posts_collection().map_reduce(mapper, reducer, by_user_database_name)
+        for doc in self._db()[by_user_database_name].find():
+            word_array = re.sub(separator_regex, ' ', doc["value"]).lower().split(" ")
+            # drop value field and add messages field
+            self._db()[by_user_database_name].update_one({"_id": doc['_id']},
+                                                         {"$unset": {"value": ""},
+                                                          "$set": {"words": word_array}})
+        self._db()[by_user_database_name].aggregate(
+            [
+                {"$unwind": "$words"},
+                {"$group": {"_id": {"name": "$_id", "word": "$words"},
+                            "count": {"$sum": 1}}},
+                {"$out": by_user_database_name}
+            ]
+        )
+
+        self._db()[by_user_database_name].aggregate(
+            [
+                {"$group": {"_id": {"word": "$_id.word"}, "count": {"$sum": "$count"}}},
+                {"$out": self._posts_collection_name + "_word_counts"}
+            ]
+        )
+
     def posts_links_aggregation(self):
         links_database_name = self._posts_collection_name + "_links"
         self._posts_collection().aggregate(
@@ -230,6 +264,7 @@ class DatabaseHandler:
 
         # Pull all matching documents into memory and extract links. Update documents with a links field
         # TODO: Make this a batch operation
+        # TODO: Consider doing this in javascript
         update_operations = []
         for doc in self._db()[links_database_name].find():
             links = []

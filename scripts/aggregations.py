@@ -20,6 +20,7 @@ def main():
     database_handler.authenticate(mongo_username, mongo_password)
 
     database_handler.posts_links_aggregation()
+    database_handler.posts_by_user_aggregation()
     database_handler.close()
 
 if __name__ == "__main__":
